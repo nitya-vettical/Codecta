@@ -122,6 +122,47 @@ backend/
 Each component is intentionally decoupled to keep the system
 safe, testable, and extensible.
 
+## Getting Started
+
+Follow these instructions to run the project locally.
+
+### 1. Clone the Repository
+```bash
+git clone <your-repo-url>
+cd intelligent-code-reviewer
+```
+
+### 2. Backend Setup
+The backend requires Python 3.
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+Set up your environment variables:
+1. Copy `.env.example` to `.env`.
+2. Add your Groq API key to the `.env` file.
+```bash
+cp .env.example .env
+```
+
+Start the backend server:
+```bash
+python app.py
+```
+The backend should now run on `http://localhost:5000`.
+
+### 3. Frontend Setup
+The frontend uses Vite and React. In a new terminal:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+The frontend should now run on the port provided by Vite (usually `http://localhost:5173`).
+
 ## Safety and Design Decisions
 
 Codecta is designed with a defense-in-depth approach when handling untrusted code.

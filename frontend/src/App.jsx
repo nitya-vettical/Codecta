@@ -105,12 +105,12 @@ function App() {
 
 
     if (activeTab === "static") {
-      // If code was blocked, static analysis does not exist
+      // If code was blocked, static validation is what failed
       if (result.allowed === false) {
         return (
           <div className="blocked-state">
-            <h4>🚫 Static Analysis Skipped</h4>
-            <p>Code was blocked during validation.</p>
+            <h4>🚨 Static Analysis Failed</h4>
+            <p>{result.reason}</p>
           </div>
         );
       }

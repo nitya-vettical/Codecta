@@ -6,7 +6,6 @@ FORBIDDEN_NODES = (
     ast.With,
     ast.Global,
     ast.Nonlocal,
-    ast.Lambda,
 )
 
 FORBIDDEN_CALLS = {
@@ -33,9 +32,6 @@ def validate_code(code: str):
             if isinstance(node.func, ast.Name):
                 if node.func.id in FORBIDDEN_CALLS:
                     return False, f"Forbidden function call: {node.func.id}"
-
-            if isinstance(node.func, ast.Attribute):
-                return False, "Calling object attributes is not allowed"
 
         if isinstance(node, ast.Attribute):
             if node.attr.startswith("__"):
