@@ -1,4 +1,6 @@
 import { useState } from "react";
+import Editor from "@monaco-editor/react";
+import ReactMarkdown from "react-markdown";
 
 function App() {
   const [code, setCode] = useState("");
@@ -91,14 +93,7 @@ function App() {
 
       return (
         <div className="llm-section">
-          {result.llm_review
-            .split("\n")
-            .filter((l) => l.trim())
-            .map((line, idx) => (
-              <p key={idx} className="llm-line">
-                {line}
-              </p>
-            ))}
+          <ReactMarkdown>{result.llm_review}</ReactMarkdown>
         </div>
       );
     }
@@ -115,24 +110,33 @@ function App() {
         );
       }
 
-      const staticData = result.static_analysis || {};
+      const staticData = result.static_analysis;
+
+      if (!staticData) {
+         return <p>No static analysis data returned.</p>;
+      }
 
       return (
         <div className="static-section">
           <h4>Complexity</h4>
-          <p>Estimated: {result.execution?.loop_depth_hint}</p>
+          <p>Estimated Loop Depth: {result.execution?.loop_depth_hint}</p>
 
-          <h4>Findings</h4>
-          {Object.keys(staticData).length === 0 ? (
-            <p>No static issues detected.</p>
+          <h4>Unused Variables</h4>
+          {staticData.unused_variables && staticData.unused_variables.length > 0 ? (
+             <ul>
+               {staticData.unused_variables.map((v, i) => <li key={i}>{v}</li>)}
+             </ul>
           ) : (
-            <ul>
-              {Object.entries(staticData).map(([k, v]) => (
-                <li key={k}>
-                  <strong>{k}:</strong> {String(v)}
-                </li>
-              ))}
-            </ul>
+             <p>No unused variables detected.</p>
+          )}
+          
+          <h4>Issues</h4>
+          {staticData.issues && staticData.issues.length > 0 ? (
+             <ul>
+               {staticData.issues.map((issue, i) => <li key={i}>{issue}</li>)}
+             </ul>
+          ) : (
+             <p>No static issues detected.</p>
           )}
         </div>
       );
@@ -174,12 +178,20 @@ function App() {
         <section className="editor">
           <h2>Code Input</h2>
 
-          <textarea
-            className="code-editor"
-            placeholder="Paste your Python code here..."
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-          />
+          <div className="code-editor-container" style={{ height: "400px", border: "1px solid #2a2f3a", borderRadius: "6px", overflow: "hidden" }}>
+            <Editor
+              height="100%"
+              defaultLanguage="python"
+              theme="vs-dark"
+              value={code}
+              onChange={(value) => setCode(value || "")}
+              options={{
+                minimap: { enabled: false },
+                fontSize: 14,
+                padding: { top: 16 }
+              }}
+            />
+          </div>
 
           <button
             className="review-btn"

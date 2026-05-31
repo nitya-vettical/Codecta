@@ -4,6 +4,7 @@ from sandbox.validator import validate_code
 from sandbox.executor import safe_execute
 from sandbox.metrics import loop_depth_hint
 from llm.reviewer import llm_review
+from static_analysis.analyzer import run_static_analysis
 
 app = Flask(__name__)
 
@@ -26,11 +27,13 @@ def review_code():
     execution_result["loop_depth_hint"] = loop_depth_hint(code)
 
     review = llm_review(code)
+    static_data = run_static_analysis(code)
 
     return jsonify({
         "allowed": True,
         "execution": execution_result,
-        "llm_review": review
+        "llm_review": review,
+        "static_analysis": static_data
     })
 
 
