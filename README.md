@@ -1,218 +1,398 @@
 # Codecta — Intelligent Code Reviewer
 
-Codecta is an intelligent backend system that reviews user-submitted Python code for
-**correctness, safety, performance, and best practices**.
+Codecta is an AI-powered code review application that analyzes user-submitted Python code for **correctness, safety, performance, and code quality**.
 
-It combines:
-- Static analysis (AST-based)
-- Secure sandboxed execution
-- Execution insights
-- LLM-powered code review
+It combines traditional program analysis with sandboxed execution and LLM-generated feedback to provide a layered code-review experience.
 
-Codecta is designed to resemble how real-world developer tools reason about code,
-while ensuring untrusted code is handled safely.
+##  Features
 
----
+* **AST-based security validation**
 
-## Why Codecta?
+  * Blocks unsafe constructs before execution
+  * Detects imports and restricted operations
+  * Detects obvious infinite loops such as `while True`
 
-Modern code review tools either:
-- rely purely on static rules, or
-- blindly trust AI-generated feedback
+* **Sandboxed Python execution**
 
-Codecta bridges this gap by:
-- validating code safety before execution
-- executing code in a controlled sandbox
-- surfacing runtime insights
-- augmenting analysis with an LLM reviewer
+  * Runs submitted code in a separate process
+  * Uses a restricted set of built-ins
+  * Captures program output
+  * Enforces an execution timeout
 
----
+* **Execution insights**
 
-## Key Capabilities
+  * Execution status
+  * Execution time
+  * Lines of code
+  * Loop-depth heuristic
 
-- Static safety validation using Python AST
-- Sandboxed execution with strict time limits
-- Restricted execution environment
-- Runtime insights (execution time, loop depth, LOC)
-- LLM-based human-readable code review
+* **Static code analysis**
 
----
+  * Undefined-variable detection
+  * Unused-variable detection
+  * Unreachable-code detection
+  * Function-parameter and local-scope awareness
 
-## High-Level Architecture
+* **LLM-powered review**
 
-Codecta processes code in **clearly separated stages**:
+  * Identifies potential bugs
+  * Suggests readability improvements
+  * Highlights performance concerns
+  * Recommends coding best practices
 
-1. Request handling
-2. Static validation
-3. Sandbox execution
-4. Execution insights
-5. LLM review
+* **Interactive web interface**
 
-Each stage is isolated to ensure safety, clarity, and extensibility.
+  * React + Vite frontend
+  * Monaco-based code editor
+  * Separate Execution, LLM, Static Analysis, and Security views
 
-## Architecture Flow
+## Architecture
 
-Codecta follows a strict, layered processing pipeline to ensure safety and clarity.
+```text
+                    ┌──────────────────┐
+                    │   React / Vite   │
+                    │   Code Editor    │
+                    └────────┬─────────┘
+                             │
+                             │ POST /review
+                             ▼
+                    ┌──────────────────┐
+                    │   Flask API      │
+                    └────────┬─────────┘
+                             │
+                ┌────────────▼────────────┐
+                │    AST Validation       │
+                │   Security Checks       │
+                └────────────┬────────────┘
+                             │
+                    Safe code only
+                             │
+                ┌────────────▼────────────┐
+                │   Sandbox Executor      │
+                │ Separate Process +      │
+                │ Execution Timeout       │
+                └────────────┬────────────┘
+                             │
+                ┌────────────▼────────────┐
+                │   Execution Metrics     │
+                │ Time / LOC / Loop Hint  │
+                └────────────┬────────────┘
+                             │
+              ┌──────────────┴──────────────┐
+              ▼                             ▼
+     ┌─────────────────┐          ┌──────────────────┐
+     │ Static Analysis │          │   Groq LLM        │
+     │ Python AST      │          │ Code Review       │
+     └────────┬────────┘          └────────┬─────────┘
+              │                            │
+              └──────────────┬─────────────┘
+                             ▼
+                    ┌──────────────────┐
+                    │ JSON Response    │
+                    │ → React UI       │
+                    └──────────────────┘
+```
+
+## Review Pipeline
+
+Codecta processes submitted code through multiple independent layers:
 
 ### 1. Request Intake
-The backend receives Python source code via a REST API.
-The code is treated as untrusted input from the start.
 
-### 2. Static Validation (AST-Based)
-Before any execution, the code is parsed into an Abstract Syntax Tree (AST).
-Unsafe constructs such as imports, dynamic execution, reflection, and infinite loops
-are detected and blocked at this stage.
+The Flask backend receives Python source code through:
 
-If validation fails, execution is skipped entirely.
+```text
+POST /review
+```
+
+Submitted code is treated as untrusted input.
+
+### 2. AST Security Validation
+
+The source code is parsed into a Python Abstract Syntax Tree.
+
+Unsafe constructs are rejected before execution.
+
+If validation fails:
+
+```text
+Code → Validator → BLOCKED
+```
+
+The sandbox is never started.
 
 ### 3. Sandboxed Execution
-Validated code is executed inside a restricted sandbox:
-- Runs in a separate OS process
-- Enforces a hard execution timeout
-- Uses a limited set of safe built-ins
-- Captures standard output safely
 
-This prevents untrusted code from affecting the host system.
+Validated code is executed in a separate process with:
 
-### 4. Execution Insights
-After execution, Codecta computes lightweight runtime insights:
-- Execution time
-- Lines of code
-- Loop nesting depth (Big-O style hint)
+* restricted built-ins
+* isolated process execution
+* captured output
+* a hard execution timeout
 
-These insights help reason about performance characteristics.
+This allows long-running or faulty programs to be terminated without blocking the Flask application.
 
-### 5. LLM-Based Code Review
-Finally, the original source code is reviewed by an LLM.
-The model provides human-readable feedback on:
-- potential bugs
-- readability
-- maintainability
-- performance concerns
+### 4. Execution Metrics
 
-LLM output does not influence execution or safety decisions.
+Codecta calculates lightweight execution insights including:
+
+* execution time
+* lines of code
+* loop-depth heuristic
+
+The loop-depth value is an approximation intended to provide a quick performance hint rather than an exact Big-O proof.
+
+### 5. Static Analysis
+
+A custom AST-based analyzer checks for common code-quality issues such as:
+
+* variables used before definition
+* unused variables
+* unreachable code
+* function parameters and local scopes
+
+### 6. LLM Review
+
+The submitted source code is sent to a Groq-hosted LLM using:
+
+```text
+openai/gpt-oss-20b
+```
+
+The LLM produces human-readable feedback covering:
+
+* bugs and logical issues
+* performance
+* readability
+* maintainability
+* best practices
+
+The LLM is an **advisory layer**. Its output does not determine whether code is allowed to execute.
+
+## Defense in Depth
+
+Codecta deliberately separates safety decisions from AI-generated suggestions.
+
+```text
+                User Code
+                    │
+                    ▼
+            AST Security Layer
+                    │
+          ┌─────────┴─────────┐
+          │                   │
+       Unsafe               Safe
+          │                   │
+       BLOCKED                 ▼
+                      Sandboxed Process
+                             │
+                    ┌────────┴────────┐
+                    │                 │
+                 Success            Error/
+                    │              Timeout
+                    │                 │
+                    └────────┬────────┘
+                             ▼
+                     Analysis + LLM
+                             │
+                             ▼
+                         UI Output
+```
+
+This prevents an incorrect LLM recommendation from overriding the application's security checks.
+
+## Tested Behavior
+
+The application was tested locally with the following cases:
+
+| Test                      | Expected Behavior                    | Result |
+| ------------------------- | ------------------------------------ | ------ |
+| Normal Python code        | Successful execution + review        | ✅      |
+| `import os`               | Blocked before execution             | ✅      |
+| Division by zero          | Runtime error captured               | ✅      |
+| `while True`              | Infinite loop detected and blocked   | ✅      |
+| Billion-iteration loop    | Sandbox timeout                      | ✅      |
+| Valid function parameters | No false undefined-variable warnings | ✅      |
+| Undefined variable        | Static analysis warning              | ✅      |
+| Unreachable code          | Static analysis warning              | ✅      |
 
 ## Project Structure
 
-backend/
-├── app.py # Flask API entry point
+```text
+Codecta/
 │
-├── sandbox/ # Secure execution layer
-│ ├── executor.py # Process-based sandbox execution
-│ ├── validator.py # AST-based static safety validation
-│ └── metrics.py # Execution insights (loop depth, etc.)
+├── backend/
+│   ├── app.py
+│   ├── requirements.txt
+│   ├── test_request.py
+│   │
+│   ├── llm/
+│   │   └── reviewer.py
+│   │
+│   ├── sandbox/
+│   │   ├── executor.py
+│   │   ├── validator.py
+│   │   └── metrics.py
+│   │
+│   └── static_analysis/
+│       └── analyzer.py
 │
-├── llm/ # LLM integration
-│ └── reviewer.py # AI-powered code review
+├── frontend/
+│   ├── src/
+│   ├── public/
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── vite.config.js
+│   └── index.html
 │
-├── test_request.py # Local API testing script
-│
-└── venv/ # Python virtual environment
+├── .gitignore
+└── README.md
+```
 
 ## Tech Stack
 
-- **Language:** Python 3
-- **API Framework:** Flask
-- **Static Analysis:** Python AST
-- **Sandboxing:** multiprocessing (process isolation)
-- **LLM Provider:** Groq (LLaMA 3)
-- **Testing:** Python `requests`
-- **Environment Management:** venv
+### Backend
 
-Each component is intentionally decoupled to keep the system
-safe, testable, and extensible.
+* Python
+* Flask
+* Python AST
+* `multiprocessing`
+* Groq API
+* `requests`
+
+### Frontend
+
+* React
+* Vite
+* Monaco Editor
+* React Markdown
+
+### Development
+
+* Git / GitHub
+* Python virtual environment
+* npm
 
 ## Getting Started
 
-Follow these instructions to run the project locally.
+### 1. Clone the repository
 
-### 1. Clone the Repository
 ```bash
-git clone <your-repo-url>
-cd intelligent-code-reviewer
+git clone https://github.com/nitya-vettical/Codecta.git
+cd Codecta
 ```
 
-### 2. Backend Setup
-The backend requires Python 3.
+### 2. Set up the backend
+
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+Activate the virtual environment.
+
+**Windows:**
+
+```powershell
+venv\Scripts\activate
+```
+
+**macOS/Linux:**
+
+```bash
+source venv/bin/activate
+```
+
+Install dependencies:
+
+```bash
 pip install -r requirements.txt
 ```
 
-Set up your environment variables:
-1. Copy `.env.example` to `.env`.
-2. Add your Groq API key to the `.env` file.
+### 3. Configure the Groq API key
+
+Create `.env` from the example:
+
+**Windows:**
+
+```powershell
+copy .env.example .env
+```
+
+**macOS/Linux:**
+
 ```bash
 cp .env.example .env
 ```
 
-Start the backend server:
+Then add:
+
+```text
+GROQ_API_KEY=your_api_key_here
+```
+
+Do not commit `.env` to Git.
+
+### 4. Start the backend
+
+From `backend/`:
+
 ```bash
 python app.py
 ```
-The backend should now run on `http://localhost:5000`.
 
-### 3. Frontend Setup
-The frontend uses Vite and React. In a new terminal:
+The Flask server runs on:
+
+```text
+http://127.0.0.1:5000
+```
+
+### 5. Start the frontend
+
+Open a new terminal:
+
 ```bash
-cd frontend
+cd Codecta/frontend
 npm install
 npm run dev
 ```
-The frontend should now run on the port provided by Vite (usually `http://localhost:5173`).
 
-## Safety and Design Decisions
+Open the Vite URL shown in the terminal, usually:
 
-Codecta is designed with a defense-in-depth approach when handling untrusted code.
+```text
+http://localhost:5173
+```
 
-### Static Safety Before Execution
-All submitted code is validated using Python's Abstract Syntax Tree (AST)
-before any execution occurs. This allows Codecta to block unsafe constructs
-such as imports, dynamic execution, reflection, and infinite loops
-without running the code.
+## Limitations
 
-### Process-Based Isolation
-Code execution occurs in a separate OS process using Python's
-`multiprocessing` module. This ensures that misbehaving code can be
-terminated safely without affecting the main application.
+Codecta is an educational and experimental code-review system rather than a production-grade secure code execution platform.
 
-### Restricted Execution Environment
-User code executes with a tightly controlled set of built-in functions.
-Access to file I/O, networking, environment variables, and system calls
-is intentionally unavailable.
+Current limitations include:
 
-### Hard Time Limits
-Each execution is subject to a strict timeout. If the code exceeds
-the allowed runtime, the process is terminated immediately.
+* Python-only execution
+* Process isolation is weaker than container or VM isolation
+* Memory restrictions are not fully enforced
+* Static analysis is intentionally lightweight
+* Loop-depth analysis is heuristic
+* Security validation cannot guarantee complete protection against every Python attack
+* LLM output may contain incorrect or incomplete suggestions
 
-### LLM as an Advisory Layer
-The LLM-based code review is intentionally isolated from safety decisions.
-LLM output is treated as advisory feedback only and does not influence
-validation or execution logic.
+## Future Improvements
 
-This separation prevents hallucinations or incorrect suggestions
-from impacting system safety.
+Potential improvements include:
 
-## Limitations and Future Improvements
+* Docker-based sandbox isolation
+* Container-level CPU and memory limits
+* More sophisticated AST/data-flow analysis
+* Support for additional programming languages
+* Automated test-case generation
+* Code-diff and refactoring suggestions
+* Persistent review history
+* Authentication and multi-user support
+* CI/CD integration
 
-Codecta is intentionally scoped as a backend-focused system.
-Some limitations are acknowledged by design.
+##  Design Goal
 
-### Current Limitations
-- The sandbox is Python-specific and does not yet support other languages
-- Memory limits are best-effort and platform-dependent
-- Static analysis rules are conservative and may block some valid programs
-- Execution insights are heuristic-based, not exact complexity analysis
+Codecta demonstrates how **static analysis, controlled execution, runtime information, and LLM reasoning can complement one another**.
 
-### Future Improvements
-- Docker-based sandboxing for stronger isolation
-- Per-execution memory limits enforced at the container level
-- Support for additional programming languages
-- More granular static analysis rules
-- Before-and-after refactoring previews
-- Frontend UI for interactive code review
-
-These improvements are intentionally deferred to keep the current system
-focused, understandable, and secure.
+Rather than relying entirely on either traditional rules or AI-generated feedback, Codecta separates these concerns into independent layers and combines their results into a single developer-facing review.
